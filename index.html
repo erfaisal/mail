@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>CupMail - Zero-Touch Inbox</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* Modern, Minimal, Dark Mode First */
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --primary: #bb86fc;
+            --primary-hover: #9c4dcc;
+            --text: #e0e0e0;
+            --text-muted: #888888;
+            --border: #333333;
+            --success: #03dac6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { width: 100%; max-width: 650px; }
+
+        .card {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 0.85rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .input-group { display: flex; gap: 0.75rem; }
+
+        button {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover { background: var(--primary-hover); }
+        
+        button.secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+        button.secondary:hover { background: rgba(187, 134, 252, 0.1); }
+
+        /* Screens */
+        #inbox-screen { display: none; }
+
+        /* Extraction UI */
+        .extracted-box {
+            background: #232323;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--primary);
+            box-shadow: 0 4px 12px rgba(187, 134, 252, 0.1);
+        }
+
+        .extracted-box h4 { margin: 0 0 1rem 0; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem; }
+        
+        .main-code { font-size: 3rem; letter-spacing: 6px; margin: 1rem 0; font-family: monospace; color: #fff; }
+        .main-link { font-size: 1.2rem; margin: 1rem 0; color: #fff; word-break: break-all; }
+
+        .alt-section {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1rem;
+            text-align: left;
+        }
+
+        .alt-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(255,255,255,0.02);
+            border-radius: 4px;
+        }
+        .alt-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%; }
+        .alt-item button { width: auto; padding: 4px 10px; margin: 0; font-size: 0.75rem; }
+
+        /* Email List */
+        .email-list-item {
+            padding: 1.2rem 1rem;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .email-list-item:hover { background: rgba(255,255,255,0.03); }
+        .email-list-item:last-child { border-bottom: none; }
+        
+        .email-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .email-sender { font-weight: 600; color: #fff; }
+        .email-time { font-size: 0.8rem; color: var(--text-muted); }
+        .email-subject { font-size: 0.95rem; margin-bottom: 0.25rem; }
+        .email-preview { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* Status Indicator */
+        .listening-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--success);
+            margin-bottom: 1.5rem;
+        }
+        .pulse {
+            width: 8px; height: 8px; background: var(--success); border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(3, 218, 198, 0.7);
+            animation: pulsing 1.5s infinite;
+        }
+        @keyframes pulsing {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(3, 218, 198, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(3, 218, 198, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(3, 218, 198, 0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div id="setup-screen" class="card">
+        <h2 style="margin-top:0;">Setup CupMail</h2>
+        
+        <label>Email Address</label>
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Enter username">
+            <button class="secondary" style="width: auto; padding: 0 1.5rem;" onclick="generateRandom()">Random</button>
+        </div>
+        
+        <select id="domain">
+            <option value="cupmail.qzz.io">@cupmail.qzz.io</option>
+            <option value="ist.qzz.io">@ist.qzz.io</option>
+            <option value="mxmail.qzz.io">@mxmail.qzz.io</option>
+        </select>
+
+        <label>OTP Auto-Copy Behavior</label>
+        <select id="otp-mode">
+            <option value="always">Always Copy</option>
+            <option value="ask">Ask Before Copy</option>
+            <option value="never">Never Copy</option>
+        </select>
+
+        <div class="input-group" style="margin-top: 1rem;">
+            <button onclick="createInbox(false)">Create Inbox</button>
+            <button onclick="createInbox(true)" class="secondary">Create & Copy Email</button>
+        </div>
+    </div>
+
+    <div id="inbox-screen">
+        <div class="listening-status">
+            <div class="pulse"></div>
+            Listening securely on <strong id="current-email-display" style="color:#fff;"></strong>
+        </div>
+        
+        <div class="extracted-box" id="otp-container" style="display: none;">
+            <h4>Primary OTP Extracted</h4>
+            <div class="main-code" id="primary-otp"></div>
+            <button onclick="copyToClipboard(document.getElementById('primary-otp').innerText, 'OTP')">Copy Code</button>
+            <div class="alt-section" id="alt-otps"></div>
+        </div>
+
+        <div class="extracted-box" id="magic-link-container" style="display: none;">
+            <h4>Primary Magic Link</h4>
+            <div class="main-link" id="primary-link-display"></div>
+            <div class="input-group">
+                <button onclick="window.open(document.getElementById('primary-link-url').href, '_blank')">Open Link in New Tab</button>
+                <button class="secondary" onclick="copyToClipboard(document.getElementById('primary-link-url').href, 'Link')">Copy URL</button>
+                <a href="#" id="primary-link-url" style="display:none;"></a>
+            </div>
+            <div class="alt-section" id="alt-links"></div>
+        </div>
+
+        <div class="card" style="padding: 0;">
+            <h4 style="padding: 1.5rem 1.5rem 0 1.5rem; margin-top: 0;">Recent Emails</h4>
+            <div id="email-list">
+                <p style="color: var(--text-muted); text-align: center; padding: 2rem;">Waiting for incoming emails...</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- SUPABASE CONFIGURATION ---
+    // REPLACE THESE TWO LINES WITH YOUR ACTUAL SUPABASE KEYS
+    const SUPABASE_URL = 'https://piwzmvnfhnbtssgpxyuo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpd3ptdm5maG5idHNzZ3B4eXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NTY4NDYsImV4cCI6MjA5ODAzMjg0Nn0.sBoCBsPVjzH295Q4moXYvwtgeigNTdLqkWMXYkrJmAA';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // State
+    let state = {
+        email: '',
+        otpMode: 'always',
+        sessionStartTime: null
+    };
+
+    // --- SETUP LOGIC ---
+    function generateRandom() {
+        const randomStr = Math.random().toString(36).substring(2, 10);
+        document.getElementById('username').value = randomStr;
+    }
+
+    async function createInbox(copyAlso) {
+        // Request Notification permission for background zero-touch alerts
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
+        const user = document.getElementById('username').value.trim() || Math.random().toString(36).substring(2, 10);
+        const domain = document.getElementById('domain').value; // Just grab the string
+        
+        state.email = `${user}@${domain}`.toLowerCase();
+        state.otpMode = document.getElementById('otp-mode').value;
+        state.sessionStartTime = new Date().toISOString(); 
+
+        if (copyAlso) copyToClipboard(state.email, 'Email address');
+
+        // Switch UI
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('inbox-screen').style.display = 'block';
+        document.getElementById('current-email-display').innerText = state.email;
+
+        // Insert into Addresses Table using the simple domain string
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); 
+        
+        const { error } = await supabase
+            .from('addresses')
+            .insert([{ 
+                email: state.email, 
+                domain: domain, // Simplified to text
+                created_at: state.sessionStartTime,
+                expires_at: expiresAt
+            }]);
+
+        if (error) console.error("Error saving address:", error);
+
+        // Start Supabase Realtime Listener on Emails table
+        startListening();
+    }
+
+    function startListening() {
+        supabase
+            .channel('public:emails')
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'emails',
+                filter: `recipient=eq.${state.email}`
+            }, payload => {
+                const newEmail = payload.new;
+                // Only process emails received AFTER setup
+                if (new Date(newEmail.received_at) >= new Date(state.sessionStartTime)) {
+                    processNewEmail(newEmail);
+                }
+            })
+            .subscribe();
+    }
+
+    // --- ENGINE HELPERS ---
+    function getRootDomain(hostname) {
+        if (!hostname) return "";
+        const parts = hostname.split('.');
+        if (parts.length <= 2) return hostname;
+        if (parts[parts.length - 2].length <= 3 && parts[parts.length - 1].length <= 2) {
+            return parts.slice(-3).join('.');
+        }
+        return parts.slice(-2).join('.');
+    }
+
+    // --- OTP EXTRACTION ENGINE ---
+    function extractAndScoreOTPs(text, html = "") {
+        const regex = /(?:\b|\s|^)(\d{4,9})(?:\b|\s|$)/g;
+        const matches = [...text.matchAll(regex)];
+        if (matches.length === 0) return [];
+
+        const candidates = new Map();
+
+        matches.forEach(match => {
+            const code = match[1];
+            const index = match.index;
+            let score = 0;
+
+            const lengthScores = { 6: 100, 4: 90, 8: 80, 7: 70, 5: 60, 9: 50 };
+            score += lengthScores[code.length] || 0;
+
+            const start = Math.max(0, index - 150);
+            const end = Math.min(text.length, index + code.length + 150);
+            const contextText = text.substring(start, end).toLowerCase();
+
+            const strongPos = ['otp', 'verification code', 'verify', 'security code', 'one-time password', 'login code', 'pin', '2fa'];
+            const strongNeg = ['order', 'invoice', 'tracking', 'shipment', 'ticket', 'transaction', 'reference', 'amount', 'phone'];
+            
+            if (strongPos.some(kw => contextText.includes(kw))) score += 80;
+            if (strongNeg.some(kw => contextText.includes(kw))) score -= 80;
+
+            if (index / text.length <= 0.20) score += 30;
+
+            if (candidates.has(code)) {
+                candidates.set(code, candidates.get(code) + 5); 
+            } else {
+                candidates.set(code, score);
+            }
+        });
+
+        return Array.from(candidates, ([code, score]) => ({ code, score })).sort((a, b) => b.score - a.score);
+    }
+
+    // --- MAGIC LINK EXTRACTION ENGINE ---
+    function extractAndScoreLinks(htmlContent, plainText, senderEmail) {
+        const contentToParse = htmlContent || plainText;
+        if (!contentToParse) return [];
+        
+        const senderDomain = (senderEmail || "").split('@')[1]?.toLowerCase();
+        const senderRootDomain = getRootDomain(senderDomain);
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(contentToParse, 'text/html');
+        let links = doc.querySelectorAll('a[href]');
+        
+        const candidates = new Map();
+
+        links.forEach((anchor, index) => {
+            const href = anchor.getAttribute('href');
+            if (!href.startsWith('http')) return; 
+
+            try {
+                const url = new URL(href);
+                let score = 0;
+                const linkHostname = url.hostname.toLowerCase();
+                const linkRootDomain = getRootDomain(linkHostname);
+                const anchorText = anchor.innerText.trim().toLowerCase();
+                const fullUrlString = url.toString().toLowerCase();
+
+                // Domain Mathcing
+                if (linkHostname === senderDomain) score += 120;
+                else if (linkRootDomain === senderRootDomain) score += 100;
+                else score -= 150; // Heavy penalty for completely different domains
+
+                // Keywords
+                const strongPosKeywords = ['verify', 'activate', 'magic', 'signin', 'login', 'confirm', 'auth'];
+                const negKeywords = ['unsubscribe', 'privacy', 'terms', 'support', 'stop'];
+
+                if (strongPosKeywords.some(kw => fullUrlString.includes(kw))) score += 80;
+                if (negKeywords.some(kw => fullUrlString.includes(kw))) score -= 120;
+                if (strongPosKeywords.some(kw => anchorText.includes(kw))) score += 60;
+                if (negKeywords.some(kw => anchorText.includes(kw))) score -= 100;
+
+                // Button Heuristics
+                if (anchor.className.toLowerCase().includes('btn') || anchor.style.padding) score += 50;
+                if (index / links.length <= 0.25) score += 30;
+
+                if (!candidates.has(href) || score > candidates.get(href).score) {
+                    candidates.set(href, { 
+                        url: href, 
+                        hostname: linkHostname,
+                        anchorText: anchorText || linkHostname, 
+                        score: score 
+                    });
+                }
+            } catch (e) {} // Ignore malformed URLs
+        });
+
+        return Array.from(candidates.values()).sort((a, b) => b.score - a.score);
+    }
+
+    // --- UI & PROCESSING ---
+    function processNewEmail(emailData) {
+        let textBody = emailData.body_text || "";
+        let htmlBody = emailData.body_html || "";
+
+        // 1. Process OTPs
+        const otps = extractAndScoreOTPs(textBody, htmlBody);
+        if (otps.length > 0) {
+            document.getElementById('otp-container').style.display = 'block';
+            
+            const primary = otps[0];
+            document.getElementById('primary-otp').innerText = primary.code;
+            
+            // Background Notification & Auto-copy
+            triggerNotification(emailData.sender_name, `OTP: ${primary.code}`);
+            if (state.otpMode === 'always') copyToClipboard(primary.code, null);
+
+            // Other Candidates (Can be)
+            if (otps.length > 1) {
+                const altHtml = otps.slice(1).map(o => `
+                    <div class="alt-item">
+                        <span>${o.code} <small>(Score: ${o.score})</small></span>
+                        <button class="secondary" onclick="copyToClipboard('${o.code}', 'OTP')">Copy</button>
+                    </div>
+                `).join('');
+                document.getElementById('alt-otps').innerHTML = `<strong>Other possibilities:</strong><div style="margin-top:10px;">${altHtml}</div>`;
+            } else {
+                document.getElementById('alt-otps').innerHTML = "";
+            }
+        }
+
+        // 2. Process Magic Links
+        const links = extractAndScoreLinks(htmlBody, textBody, emailData.sender_email);
+        if (links.length > 0) {
+            document.getElementById('magic-link-container').style.display = 'block';
+            
+            const primaryLink = links[0];
+            const urlEl = document.getElementById('primary-link-url');
+            urlEl.href = primaryLink.url;
+            
+            document.getElementById('primary-link-display').innerText = primaryLink.hostname + (primaryLink.anchorText ? ` (${primaryLink.anchorText})` : '');
+            
+            triggerNotification(emailData.sender_name, `Magic Link Ready`);
+
+            // Other Candidates (Can be)
+            if (links.length > 1) {
+                const altHtml = links.slice(1).map(l => `
+                    <div class="alt-item">
+                        <span title="${l.url}">${l.hostname} <small>(${l.score})</small></span>
+                        <button class="secondary" onclick="copyToClipboard('${l.url}', 'Link')">Copy</button>
+                    </div>
+                `).join('');
+                document.getElementById('alt-links').innerHTML = `<strong>Other Links found:</strong><div style="margin-top:10px;">${altHtml}</div>`;
+            } else {
+                document.getElementById('alt-links').innerHTML = "";
+            }
+        }
+
+        // 3. Update Inbox List (Last 5)
+        const listDiv = document.getElementById('email-list');
+        if (listDiv.innerText.includes('Waiting')) listDiv.innerHTML = '';
+        
+        const emailDiv = document.createElement('div');
+        emailDiv.className = 'email-list-item';
+        emailDiv.innerHTML = `
+            <div class="email-header">
+                <span class="email-sender">${emailData.sender_name || emailData.sender_email}</span>
+                <span class="email-time">Just now</span>
+            </div>
+            <div class="email-subject">${emailData.subject || '(No Subject)'}</div>
+            <div class="email-preview">${emailData.preview || 'Open to view content'}</div>
+        `;
+        listDiv.prepend(emailDiv);
+
+        while (listDiv.children.length > 5) {
+            listDiv.removeChild(listDiv.lastChild);
+        }
+    }
+
+    // --- UTILS ---
+    function copyToClipboard(text, type) {
+        navigator.clipboard.writeText(text).then(() => {
+            if(type) alert(`${type} copied to clipboard!`); 
+        }).catch(err => console.error('Copy failed', err));
+    }
+
+    function triggerNotification(sender, message) {
+        if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+            new Notification(`CupMail - ${sender || 'New Email'}`, { body: message });
+        }
+    }
+
+</script>
+</body>
+</html>
