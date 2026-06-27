@@ -241,40 +241,51 @@
     }
 
     async function createInbox(copyAlso) {
-        // Request Notification permission for background zero-touch alerts
-        if ("Notification" in window && Notification.permission !== "granted") {
-            Notification.requestPermission();
+        // 1. SAFE NOTIFICATION REQUEST (Won't crash on local computer)
+        try {
+            if ("Notification" in window && window.isSecureContext && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+        } catch (e) {
+            console.warn("Notifications are blocked on local files. This will work when deployed to Cloudflare.");
         }
 
+        // 2. Generate Email
         const user = document.getElementById('username').value.trim() || Math.random().toString(36).substring(2, 10);
-        const domain = document.getElementById('domain').value; // Just grab the string
+        const domain = document.getElementById('domain').value; 
         
         state.email = `${user}@${domain}`.toLowerCase();
         state.otpMode = document.getElementById('otp-mode').value;
         state.sessionStartTime = new Date().toISOString(); 
 
-        if (copyAlso) copyToClipboard(state.email, 'Email address');
+        // 3. Trigger our safe fallback copy
+        if (copyAlso) {
+            copyToClipboard(state.email, 'Email address');
+        }
 
-        // Switch UI
+        // 4. SWITCH THE UI (Move to inbox screen)
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('inbox-screen').style.display = 'block';
         document.getElementById('current-email-display').innerText = state.email;
 
-        // Insert into Addresses Table using the simple domain string
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); 
-        
-        const { error } = await supabase
-            .from('addresses')
-            .insert([{ 
-                email: state.email, 
-                domain: domain, // Simplified to text
-                created_at: state.sessionStartTime,
-                expires_at: expiresAt
-            }]);
+        // 5. Send to Supabase safely
+        try {
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); 
+            const { error } = await supabase
+                .from('addresses')
+                .insert([{ 
+                    email: state.email, 
+                    domain: domain, 
+                    created_at: state.sessionStartTime,
+                    expires_at: expiresAt
+                }]);
 
-        if (error) console.error("Error saving address:", error);
+            if (error) console.error("Database error (Did you disable RLS in Supabase?):", error);
+        } catch (err) {
+            console.error("Supabase connection failed. Check your URL and Key.", err);
+        }
 
-        // Start Supabase Realtime Listener on Emails table
+        // 6. Start listening for incoming emails
         startListening();
     }
 
@@ -484,9 +495,28 @@
 
     // --- UTILS ---
     function copyToClipboard(text, type) {
-        navigator.clipboard.writeText(text).then(() => {
-            if(type) alert(`${type} copied to clipboard!`); 
-        }).catch(err => console.error('Copy failed', err));
+        // Modern approach (Works on HTTPS like Cloudflare Pages)
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                if(type) alert(`${type} copied to clipboard!`); 
+            }).catch(err => console.error('Copy failed', err));
+        } else {
+            // Fallback approach (Works when testing locally on your computer)
+            let textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                if(type) alert(`${type} copied to clipboard (Fallback mode)!`);
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        }
     }
 
     function triggerNotification(sender, message) {
