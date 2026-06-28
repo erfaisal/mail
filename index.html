@@ -2,529 +2,96 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-width=1.0">
-    <title>CupMail - Zero-Touch Inbox</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CupMail - Disposable Email</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
     <style>
-        /* Modern, Minimal, Dark Mode First */
-        :root {
-            --bg: #121212;
-            --surface: #1e1e1e;
-            --primary: #bb86fc;
-            --primary-hover: #9c4dcc;
-            --text: #e0e0e0;
-            --text-muted: #888888;
-            --border: #333333;
-            --success: #03dac6;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 2rem;
-            display: flex;
-            justify-content: center;
-        }
-
-        .container { width: 100%; max-width: 650px; }
-
-        .card {
-            background: var(--surface);
-            padding: 2rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            margin-bottom: 1.5rem;
-        }
-
-        input, select, button {
-            width: 100%;
-            padding: 0.85rem;
-            margin-bottom: 1rem;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: var(--bg);
-            color: var(--text);
-            font-size: 1rem;
-            box-sizing: border-box;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .input-group { display: flex; gap: 0.75rem; }
-
-        button {
-            background: var(--primary);
-            color: #000;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        button:hover { background: var(--primary-hover); }
-        
-        button.secondary {
-            background: transparent;
-            color: var(--primary);
-            border: 1px solid var(--primary);
-        }
-        button.secondary:hover { background: rgba(187, 134, 252, 0.1); }
-
-        /* Screens */
-        #inbox-screen { display: none; }
-
-        /* Extraction UI */
-        .extracted-box {
-            background: #232323;
-            padding: 1.5rem;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--primary);
-            box-shadow: 0 4px 12px rgba(187, 134, 252, 0.1);
-        }
-
-        .extracted-box h4 { margin: 0 0 1rem 0; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem; }
-        
-        .main-code { font-size: 3rem; letter-spacing: 6px; margin: 1rem 0; font-family: monospace; color: #fff; }
-        .main-link { font-size: 1.2rem; margin: 1rem 0; color: #fff; word-break: break-all; }
-
-        .alt-section {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-top: 1.5rem;
-            border-top: 1px solid var(--border);
-            padding-top: 1rem;
-            text-align: left;
-        }
-
-        .alt-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-            padding: 0.5rem;
-            background: rgba(255,255,255,0.02);
-            border-radius: 4px;
-        }
-        .alt-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%; }
-        .alt-item button { width: auto; padding: 4px 10px; margin: 0; font-size: 0.75rem; }
-
-        /* Email List */
-        .email-list-item {
-            padding: 1.2rem 1rem;
-            border-bottom: 1px solid var(--border);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .email-list-item:hover { background: rgba(255,255,255,0.03); }
-        .email-list-item:last-child { border-bottom: none; }
-        
-        .email-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-        .email-sender { font-weight: 600; color: #fff; }
-        .email-time { font-size: 0.8rem; color: var(--text-muted); }
-        .email-subject { font-size: 0.95rem; margin-bottom: 0.25rem; }
-        .email-preview { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        /* Status Indicator */
-        .listening-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
-            color: var(--success);
-            margin-bottom: 1.5rem;
-        }
-        .pulse {
-            width: 8px; height: 8px; background: var(--success); border-radius: 50%;
-            box-shadow: 0 0 0 0 rgba(3, 218, 198, 0.7);
-            animation: pulsing 1.5s infinite;
-        }
-        @keyframes pulsing {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(3, 218, 198, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(3, 218, 198, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(3, 218, 198, 0); }
-        }
+        .hidden-view { display: none !important; }
+        .toast-enter { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
+        .toast-exit { transform: translateY(-20px); opacity: 0; transition: all 0.3s ease-in; }
     </style>
 </head>
-<body>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen">
 
-<div class="container">
-    
-    <div id="setup-screen" class="card">
-        <h2 style="margin-top:0;">Setup CupMail</h2>
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <div id="landing-view" class="max-w-md mx-auto mt-20 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <h1 class="text-4xl font-bold text-center mb-2 text-gray-900 tracking-tight">CupMail</h1>
+        <p class="text-center text-gray-500 mb-8 text-sm">Instant, intelligent disposable email.</p>
         
-        <label>Email Address</label>
-        <div class="input-group">
-            <input type="text" id="username" placeholder="Enter username">
-            <button class="secondary" style="width: auto; padding: 0 1.5rem;" onclick="generateRandom()">Random</button>
+        <div class="mb-4">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+            <div class="flex shadow-sm rounded-md">
+                <input type="text" id="username-input" class="flex-1 border border-gray-300 rounded-l-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="email">
+                <button id="btn-random" class="bg-gray-100 px-4 py-2 rounded-r-md border border-l-0 border-gray-300 hover:bg-gray-200 transition font-medium text-gray-700">Random</button>
+            </div>
         </div>
-        
-        <select id="domain">
-            <option value="cupmail.qzz.io">@cupmail.qzz.io</option>
-            <option value="ist.qzz.io">@ist.qzz.io</option>
-            <option value="mxmail.qzz.io">@mxmail.qzz.io</option>
-        </select>
 
-        <label>OTP Auto-Copy Behavior</label>
-        <select id="otp-mode">
-            <option value="always">Always Copy</option>
-            <option value="ask">Ask Before Copy</option>
-            <option value="never">Never Copy</option>
-        </select>
+        <div class="mb-8">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Domain</label>
+            <select id="domain-select" class="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition bg-white">
+                <option value="mxmail.qzz.io">@mxmail.qzz.io</option>
+                <option value="cupmail.qzz.io">@cupmail.qzz.io</option>
+                <option value="ist.qzz.io">@ist.qzz.io</option>
+            </select>
+        </div>
 
-        <div class="input-group" style="margin-top: 1rem;">
-            <button onclick="createInbox(false)">Create Inbox</button>
-            <button onclick="createInbox(true)" class="secondary">Create & Copy Email</button>
+        <div class="flex space-x-3">
+            <button id="btn-create" class="flex-1 bg-blue-600 text-white font-semibold py-2.5 rounded-md hover:bg-blue-700 transition shadow-sm">Create Inbox</button>
+            <button id="btn-copy-create" class="flex-1 bg-gray-900 text-white font-semibold py-2.5 rounded-md hover:bg-black transition shadow-sm">Copy & Create</button>
         </div>
     </div>
 
-    <div id="inbox-screen">
-        <div class="listening-status">
-            <div class="pulse"></div>
-            Listening securely on <strong id="current-email-display" style="color:#fff;"></strong>
-        </div>
-        
-        <div class="extracted-box" id="otp-container" style="display: none;">
-            <h4>Primary OTP Extracted</h4>
-            <div class="main-code" id="primary-otp"></div>
-            <button onclick="copyToClipboard(document.getElementById('primary-otp').innerText, 'OTP')">Copy Code</button>
-            <div class="alt-section" id="alt-otps"></div>
-        </div>
-
-        <div class="extracted-box" id="magic-link-container" style="display: none;">
-            <h4>Primary Magic Link</h4>
-            <div class="main-link" id="primary-link-display"></div>
-            <div class="input-group">
-                <button onclick="window.open(document.getElementById('primary-link-url').href, '_blank')">Open Link in New Tab</button>
-                <button class="secondary" onclick="copyToClipboard(document.getElementById('primary-link-url').href, 'Link')">Copy URL</button>
-                <a href="#" id="primary-link-url" style="display:none;"></a>
+    <div id="inbox-view" class="hidden-view max-w-5xl mx-auto p-6 mt-10">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center">
+            <div>
+                <h2 id="active-email-display" class="text-3xl font-bold text-gray-900 tracking-tight"></h2>
+                <p id="expiry-display" class="text-sm text-red-500 font-medium mt-1"></p>
             </div>
-            <div class="alt-section" id="alt-links"></div>
+            <button id="btn-change-address" class="mt-4 md:mt-0 px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition">Change Address</button>
         </div>
 
-        <div class="card" style="padding: 0;">
-            <h4 style="padding: 1.5rem 1.5rem 0 1.5rem; margin-top: 0;">Recent Emails</h4>
-            <div id="email-list">
-                <p style="color: var(--text-muted); text-align: center; padding: 2rem;">Waiting for incoming emails...</p>
+        <div id="extraction-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 hidden-view">
+            <div id="otp-panel" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hidden-view">
+                <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Primary OTP</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <span id="primary-otp" class="text-4xl font-mono font-bold text-gray-900 tracking-widest"></span>
+                    <button id="btn-copy-primary-otp" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-md text-sm font-semibold hover:bg-blue-100 transition">Copy</button>
+                </div>
+                <div id="other-otps-container" class="mt-4 border-t border-gray-100 pt-3 hidden-view">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Other codes found:</p>
+                    <div id="other-otps-list" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <div id="magic-link-panel" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hidden-view">
+                <h3 class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Magic Link</h3>
+                <div class="flex justify-between items-center mb-4 gap-4">
+                    <span id="primary-link-name" class="text-lg font-semibold text-gray-900 truncate flex-1"></span>
+                    <div class="flex space-x-2 shrink-0">
+                        <a id="btn-open-primary-link" href="#" target="_blank" class="px-4 py-2 bg-green-50 text-green-700 rounded-md text-sm font-semibold hover:bg-green-100 transition">Open</a>
+                        <button id="btn-copy-primary-link" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-semibold hover:bg-gray-200 transition">Copy</button>
+                    </div>
+                </div>
+                <div id="other-links-container" class="mt-4 border-t border-gray-100 pt-3 hidden-view">
+                    <p class="text-xs font-medium text-gray-500 mb-2">Other links (May include unsubscribes):</p>
+                    <div id="other-links-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="text-xl font-bold text-gray-900 mb-4">Inbox <span class="text-sm font-normal text-gray-500">(Auto-updating)</span></h3>
+        <div id="email-list" class="space-y-3">
+            <div class="text-center p-12 bg-white rounded-xl border border-dashed border-gray-300">
+                <div class="animate-pulse flex flex-col items-center">
+                    <div class="h-10 w-10 bg-gray-200 rounded-full mb-3"></div>
+                    <p class="text-gray-500 font-medium">Waiting for incoming emails...</p>
+                </div>
             </div>
         </div>
     </div>
 
-</div>
-
-<script>
-    // --- SUPABASE CONFIGURATION ---
-    // REPLACE THESE TWO LINES WITH YOUR ACTUAL SUPABASE KEYS
-    const SUPABASE_URL = 'https://piwzmvnfhnbtssgpxyuo.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpd3ptdm5maG5idHNzZ3B4eXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NTY4NDYsImV4cCI6MjA5ODAzMjg0Nn0.sBoCBsPVjzH295Q4moXYvwtgeigNTdLqkWMXYkrJmAA';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // State
-    let state = {
-        email: '',
-        otpMode: 'always',
-        sessionStartTime: null
-    };
-
-    // --- SETUP LOGIC ---
-    function generateRandom() {
-        const randomStr = Math.random().toString(36).substring(2, 10);
-        document.getElementById('username').value = randomStr;
-    }
-
-    async function createInbox(copyAlso) {
-        // 1. SAFE NOTIFICATION REQUEST (Won't crash on local computer)
-        try {
-            if ("Notification" in window && window.isSecureContext && Notification.permission !== "granted") {
-                Notification.requestPermission();
-            }
-        } catch (e) {
-            console.warn("Notifications are blocked on local files. This will work when deployed to Cloudflare.");
-        }
-
-        // 2. Generate Email
-        const user = document.getElementById('username').value.trim() || Math.random().toString(36).substring(2, 10);
-        const domain = document.getElementById('domain').value; 
-        
-        state.email = `${user}@${domain}`.toLowerCase();
-        state.otpMode = document.getElementById('otp-mode').value;
-        state.sessionStartTime = new Date().toISOString(); 
-
-        // 3. Trigger our safe fallback copy
-        if (copyAlso) {
-            copyToClipboard(state.email, 'Email address');
-        }
-
-        // 4. SWITCH THE UI (Move to inbox screen)
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('inbox-screen').style.display = 'block';
-        document.getElementById('current-email-display').innerText = state.email;
-
-        // 5. Send to Supabase safely
-        try {
-            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); 
-            const { error } = await supabase
-                .from('addresses')
-                .insert([{ 
-                    email: state.email, 
-                    domain: domain, 
-                    created_at: state.sessionStartTime,
-                    expires_at: expiresAt
-                }]);
-
-            if (error) console.error("Database error (Did you disable RLS in Supabase?):", error);
-        } catch (err) {
-            console.error("Supabase connection failed. Check your URL and Key.", err);
-        }
-
-        // 6. Start listening for incoming emails
-        startListening();
-    }
-
-    function startListening() {
-        supabase
-            .channel('public:emails')
-            .on('postgres_changes', { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'emails',
-                filter: `recipient=eq.${state.email}`
-            }, payload => {
-                const newEmail = payload.new;
-                // Only process emails received AFTER setup
-                if (new Date(newEmail.received_at) >= new Date(state.sessionStartTime)) {
-                    processNewEmail(newEmail);
-                }
-            })
-            .subscribe();
-    }
-
-    // --- ENGINE HELPERS ---
-    function getRootDomain(hostname) {
-        if (!hostname) return "";
-        const parts = hostname.split('.');
-        if (parts.length <= 2) return hostname;
-        if (parts[parts.length - 2].length <= 3 && parts[parts.length - 1].length <= 2) {
-            return parts.slice(-3).join('.');
-        }
-        return parts.slice(-2).join('.');
-    }
-
-    // --- OTP EXTRACTION ENGINE ---
-    function extractAndScoreOTPs(text, html = "") {
-        const regex = /(?:\b|\s|^)(\d{4,9})(?:\b|\s|$)/g;
-        const matches = [...text.matchAll(regex)];
-        if (matches.length === 0) return [];
-
-        const candidates = new Map();
-
-        matches.forEach(match => {
-            const code = match[1];
-            const index = match.index;
-            let score = 0;
-
-            const lengthScores = { 6: 100, 4: 90, 8: 80, 7: 70, 5: 60, 9: 50 };
-            score += lengthScores[code.length] || 0;
-
-            const start = Math.max(0, index - 150);
-            const end = Math.min(text.length, index + code.length + 150);
-            const contextText = text.substring(start, end).toLowerCase();
-
-            const strongPos = ['otp', 'verification code', 'verify', 'security code', 'one-time password', 'login code', 'pin', '2fa'];
-            const strongNeg = ['order', 'invoice', 'tracking', 'shipment', 'ticket', 'transaction', 'reference', 'amount', 'phone'];
-            
-            if (strongPos.some(kw => contextText.includes(kw))) score += 80;
-            if (strongNeg.some(kw => contextText.includes(kw))) score -= 80;
-
-            if (index / text.length <= 0.20) score += 30;
-
-            if (candidates.has(code)) {
-                candidates.set(code, candidates.get(code) + 5); 
-            } else {
-                candidates.set(code, score);
-            }
-        });
-
-        return Array.from(candidates, ([code, score]) => ({ code, score })).sort((a, b) => b.score - a.score);
-    }
-
-    // --- MAGIC LINK EXTRACTION ENGINE ---
-    function extractAndScoreLinks(htmlContent, plainText, senderEmail) {
-        const contentToParse = htmlContent || plainText;
-        if (!contentToParse) return [];
-        
-        const senderDomain = (senderEmail || "").split('@')[1]?.toLowerCase();
-        const senderRootDomain = getRootDomain(senderDomain);
-
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(contentToParse, 'text/html');
-        let links = doc.querySelectorAll('a[href]');
-        
-        const candidates = new Map();
-
-        links.forEach((anchor, index) => {
-            const href = anchor.getAttribute('href');
-            if (!href.startsWith('http')) return; 
-
-            try {
-                const url = new URL(href);
-                let score = 0;
-                const linkHostname = url.hostname.toLowerCase();
-                const linkRootDomain = getRootDomain(linkHostname);
-                const anchorText = anchor.innerText.trim().toLowerCase();
-                const fullUrlString = url.toString().toLowerCase();
-
-                // Domain Mathcing
-                if (linkHostname === senderDomain) score += 120;
-                else if (linkRootDomain === senderRootDomain) score += 100;
-                else score -= 150; // Heavy penalty for completely different domains
-
-                // Keywords
-                const strongPosKeywords = ['verify', 'activate', 'magic', 'signin', 'login', 'confirm', 'auth'];
-                const negKeywords = ['unsubscribe', 'privacy', 'terms', 'support', 'stop'];
-
-                if (strongPosKeywords.some(kw => fullUrlString.includes(kw))) score += 80;
-                if (negKeywords.some(kw => fullUrlString.includes(kw))) score -= 120;
-                if (strongPosKeywords.some(kw => anchorText.includes(kw))) score += 60;
-                if (negKeywords.some(kw => anchorText.includes(kw))) score -= 100;
-
-                // Button Heuristics
-                if (anchor.className.toLowerCase().includes('btn') || anchor.style.padding) score += 50;
-                if (index / links.length <= 0.25) score += 30;
-
-                if (!candidates.has(href) || score > candidates.get(href).score) {
-                    candidates.set(href, { 
-                        url: href, 
-                        hostname: linkHostname,
-                        anchorText: anchorText || linkHostname, 
-                        score: score 
-                    });
-                }
-            } catch (e) {} // Ignore malformed URLs
-        });
-
-        return Array.from(candidates.values()).sort((a, b) => b.score - a.score);
-    }
-
-    // --- UI & PROCESSING ---
-    function processNewEmail(emailData) {
-        let textBody = emailData.body_text || "";
-        let htmlBody = emailData.body_html || "";
-
-        // 1. Process OTPs
-        const otps = extractAndScoreOTPs(textBody, htmlBody);
-        if (otps.length > 0) {
-            document.getElementById('otp-container').style.display = 'block';
-            
-            const primary = otps[0];
-            document.getElementById('primary-otp').innerText = primary.code;
-            
-            // Background Notification & Auto-copy
-            triggerNotification(emailData.sender_name, `OTP: ${primary.code}`);
-            if (state.otpMode === 'always') copyToClipboard(primary.code, null);
-
-            // Other Candidates (Can be)
-            if (otps.length > 1) {
-                const altHtml = otps.slice(1).map(o => `
-                    <div class="alt-item">
-                        <span>${o.code} <small>(Score: ${o.score})</small></span>
-                        <button class="secondary" onclick="copyToClipboard('${o.code}', 'OTP')">Copy</button>
-                    </div>
-                `).join('');
-                document.getElementById('alt-otps').innerHTML = `<strong>Other possibilities:</strong><div style="margin-top:10px;">${altHtml}</div>`;
-            } else {
-                document.getElementById('alt-otps').innerHTML = "";
-            }
-        }
-
-        // 2. Process Magic Links
-        const links = extractAndScoreLinks(htmlBody, textBody, emailData.sender_email);
-        if (links.length > 0) {
-            document.getElementById('magic-link-container').style.display = 'block';
-            
-            const primaryLink = links[0];
-            const urlEl = document.getElementById('primary-link-url');
-            urlEl.href = primaryLink.url;
-            
-            document.getElementById('primary-link-display').innerText = primaryLink.hostname + (primaryLink.anchorText ? ` (${primaryLink.anchorText})` : '');
-            
-            triggerNotification(emailData.sender_name, `Magic Link Ready`);
-
-            // Other Candidates (Can be)
-            if (links.length > 1) {
-                const altHtml = links.slice(1).map(l => `
-                    <div class="alt-item">
-                        <span title="${l.url}">${l.hostname} <small>(${l.score})</small></span>
-                        <button class="secondary" onclick="copyToClipboard('${l.url}', 'Link')">Copy</button>
-                    </div>
-                `).join('');
-                document.getElementById('alt-links').innerHTML = `<strong>Other Links found:</strong><div style="margin-top:10px;">${altHtml}</div>`;
-            } else {
-                document.getElementById('alt-links').innerHTML = "";
-            }
-        }
-
-        // 3. Update Inbox List (Last 5)
-        const listDiv = document.getElementById('email-list');
-        if (listDiv.innerText.includes('Waiting')) listDiv.innerHTML = '';
-        
-        const emailDiv = document.createElement('div');
-        emailDiv.className = 'email-list-item';
-        emailDiv.innerHTML = `
-            <div class="email-header">
-                <span class="email-sender">${emailData.sender_name || emailData.sender_email}</span>
-                <span class="email-time">Just now</span>
-            </div>
-            <div class="email-subject">${emailData.subject || '(No Subject)'}</div>
-            <div class="email-preview">${emailData.preview || 'Open to view content'}</div>
-        `;
-        listDiv.prepend(emailDiv);
-
-        while (listDiv.children.length > 5) {
-            listDiv.removeChild(listDiv.lastChild);
-        }
-    }
-
-    // --- UTILS ---
-    function copyToClipboard(text, type) {
-        // Modern approach (Works on HTTPS like Cloudflare Pages)
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(() => {
-                if(type) alert(`${type} copied to clipboard!`); 
-            }).catch(err => console.error('Copy failed', err));
-        } else {
-            // Fallback approach (Works when testing locally on your computer)
-            let textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.opacity = "0";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                if(type) alert(`${type} copied to clipboard (Fallback mode)!`);
-            } catch (err) {
-                console.error('Fallback copy failed', err);
-            }
-            document.body.removeChild(textArea);
-        }
-    }
-
-    function triggerNotification(sender, message) {
-        if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
-            new Notification(`CupMail - ${sender || 'New Email'}`, { body: message });
-        }
-    }
-
-</script>
+    <script type="module" src="./app.js"></script>
 </body>
 </html>
