@@ -6,6 +6,7 @@
     <title>CupMail - Disposable Email</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         .hidden-view { display: none !important; }
         .toast-enter { transform: translateY(0); opacity: 1; transition: all 0.3s ease-out; }
@@ -28,13 +29,17 @@
             </div>
         </div>
 
-        <div class="mb-8">
+        <div class="mb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-1">Domain</label>
             <select id="domain-select" class="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition bg-white">
                 <option value="mxmail.qzz.io">@mxmail.qzz.io</option>
                 <option value="cupmail.qzz.io">@cupmail.qzz.io</option>
                 <option value="ist.qzz.io">@ist.qzz.io</option>
             </select>
+        </div>
+
+        <div class="mb-6 flex justify-center">
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAADsa3KwwGz4zlctK" data-theme="light"></div>
         </div>
 
         <div class="flex space-x-3">
