@@ -61,10 +61,9 @@ async function handleCreate(copy = false) {
     const user = inputUsername.value.trim().toLowerCase();
     if (!user) return showToast('Please enter a username');
     
-    // --- CAPTCHA CHECK ---
-    // Make sure the user completed the Cloudflare Turnstile challenge
-    const turnstileResponse = window.turnstile ? window.turnstile.getResponse() : null;
-    if (!turnstileResponse) {
+    // --- 1. CAPTCHA CHECK ---
+    const turnstileToken = window.turnstile ? window.turnstile.getResponse() : null;
+    if (!turnstileToken) {
         return showToast('Please complete the CAPTCHA check.');
     }
     
@@ -74,39 +73,53 @@ async function handleCreate(copy = false) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    // Get the silent User ID
+    // --- 2. GET SILENT USER ID ---
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     if (authError || !authUser) {
-        window.turnstile.reset(); // Reset CAPTCHA so they can try again
+        window.turnstile.reset(); 
         return showToast('Authentication failed. Please refresh the page.');
     }
 
-    // Insert into Supabase (Now includes user_id for RLS security)
-    const { data, error } = await supabase
-        .from('addresses')
-        .insert([{ 
-            email: fullEmail, 
-            domain: domain, 
-            expires_at: expiresAt.toISOString(),
-            user_id: authUser.id 
-        }])
-        .select()
-        .single();
+    // --- 3. SEND TO NEW CLOUDFLARE WORKER ---
+    // REPLACE THIS URL WITH YOUR ACTUAL API WORKER URL
+    const WORKER_API_URL = 'https://cupmail-api.YOUR_SUBDOMAIN.workers.dev'; 
 
-    if (error) {
-        window.turnstile.reset(); // Reset CAPTCHA on database error
-        return showToast('Error creating inbox: ' + error.message);
+    try {
+        const response = await fetch(WORKER_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: fullEmail,
+                domain: domain,
+                expires_at: expiresAt.toISOString(),
+                user_id: authUser.id,
+                turnstileToken: turnstileToken // Sending token to backend for verification
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            window.turnstile.reset();
+            return showToast('Error creating inbox: ' + (result.error || 'Unknown error'));
+        }
+
+        // --- 4. SUCCESS UI UPDATES ---
+        activeAddress = fullEmail;
+        
+        if (copy) copyToClipboard(fullEmail, 'Address copied and Inbox created!');
+        else showToast('Inbox created successfully!');
+
+        window.turnstile.reset(); // Reset for next time
+        setupInboxView(fullEmail, expiresAt);
+
+    } catch (err) {
+        window.turnstile.reset();
+        showToast('Network error while creating inbox.');
+        console.error(err);
     }
-
-    activeAddress = fullEmail;
-    
-    if (copy) copyToClipboard(fullEmail, 'Address copied and Inbox created!');
-    else showToast('Inbox created successfully!');
-
-    // Reset Turnstile for the next time they return to the landing screen
-    window.turnstile.reset();
-
-    setupInboxView(fullEmail, expiresAt);
 }
 
 btnCreate.addEventListener('click', () => handleCreate(false));
