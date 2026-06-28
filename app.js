@@ -10,6 +10,17 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let activeAddress = null;
 let activeSubscription = null;
 
+// --- SILENT AUTHENTICATION ---
+// This runs immediately to secure the session
+async function initializeAnonymousSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        const { error } = await supabase.auth.signInAnonymously();
+        if (error) console.error("Silent Auth Error:", error);
+    }
+}
+initializeAnonymousSession();
+
 // --- DOM ELEMENTS ---
 const viewLanding = document.getElementById('landing-view');
 const viewInbox = document.getElementById('inbox-view');
@@ -29,9 +40,7 @@ function showToast(message) {
     toast.textContent = message;
     toastContainer.appendChild(toast);
     
-    // Animate in
     setTimeout(() => { toast.classList.remove('toast-exit'); toast.classList.add('toast-enter'); }, 10);
-    // Animate out and remove
     setTimeout(() => {
         toast.classList.remove('toast-enter');
         toast.classList.add('toast-exit');
@@ -52,25 +61,50 @@ async function handleCreate(copy = false) {
     const user = inputUsername.value.trim().toLowerCase();
     if (!user) return showToast('Please enter a username');
     
+    // --- CAPTCHA CHECK ---
+    // Make sure the user completed the Cloudflare Turnstile challenge
+    const turnstileResponse = window.turnstile ? window.turnstile.getResponse() : null;
+    if (!turnstileResponse) {
+        return showToast('Please complete the CAPTCHA check.');
+    }
+    
     const domain = selectDomain.value;
     const fullEmail = `${user}@${domain}`;
     
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    // Insert into Supabase
+    // Get the silent User ID
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !authUser) {
+        window.turnstile.reset(); // Reset CAPTCHA so they can try again
+        return showToast('Authentication failed. Please refresh the page.');
+    }
+
+    // Insert into Supabase (Now includes user_id for RLS security)
     const { data, error } = await supabase
         .from('addresses')
-        .insert([{ email: fullEmail, domain: domain, expires_at: expiresAt.toISOString() }])
+        .insert([{ 
+            email: fullEmail, 
+            domain: domain, 
+            expires_at: expiresAt.toISOString(),
+            user_id: authUser.id 
+        }])
         .select()
         .single();
 
-    if (error) return showToast('Error creating inbox: ' + error.message);
+    if (error) {
+        window.turnstile.reset(); // Reset CAPTCHA on database error
+        return showToast('Error creating inbox: ' + error.message);
+    }
 
     activeAddress = fullEmail;
     
     if (copy) copyToClipboard(fullEmail, 'Address copied and Inbox created!');
     else showToast('Inbox created successfully!');
+
+    // Reset Turnstile for the next time they return to the landing screen
+    window.turnstile.reset();
 
     setupInboxView(fullEmail, expiresAt);
 }
@@ -120,8 +154,7 @@ function subscribeToEmails(recipient) {
             filter: `recipient=eq.${recipient}` 
         }, payload => {
             showToast('New email received!');
-            // Prepend new email, update UI
-            fetchInitialEmails(recipient); // Simplest way to refresh top 5
+            fetchInitialEmails(recipient);
         })
         .subscribe();
 }
@@ -129,10 +162,8 @@ function subscribeToEmails(recipient) {
 function renderEmails(emailsArray) {
     if (emailsArray.length === 0) return;
     
-    // Clear list
     emailList.innerHTML = '';
     
-    // Analyze latest email for Extraction
     const latestEmail = emailsArray[0];
     const extractedBody = latestEmail.body_text || latestEmail.body_html || '';
     
@@ -141,7 +172,6 @@ function renderEmails(emailsArray) {
     
     updateExtractionUI(pOtp, oOtps, pLink, oLinks);
 
-    // Render list
     emailsArray.forEach(email => {
         const div = document.createElement('div');
         div.className = 'bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer';
@@ -164,7 +194,6 @@ function updateExtractionUI(pOtp, oOtps, pLink, oLinks) {
 
     let hasExtraction = false;
 
-    // Handle OTP UI
     if (pOtp) {
         hasExtraction = true;
         otpPanel.classList.remove('hidden-view');
@@ -190,7 +219,6 @@ function updateExtractionUI(pOtp, oOtps, pLink, oLinks) {
         otpPanel.classList.add('hidden-view');
     }
 
-    // Handle Magic Link UI
     if (pLink) {
         hasExtraction = true;
         linkPanel.classList.remove('hidden-view');
